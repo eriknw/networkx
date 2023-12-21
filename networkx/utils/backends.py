@@ -97,6 +97,8 @@ from ..exception import NetworkXNotImplemented
 
 __all__ = ["_dispatch"]
 
+INDENT = ""
+
 
 def _get_backends(group, *, load_and_call=False):
     items = entry_points(group=group)
@@ -402,6 +404,15 @@ class _dispatch:
             self._sig = sig
         return self._sig
 
+    def __call2__(self, /, *args, backend=None, **kwargs):
+        global INDENT
+        print(f"+{INDENT}{self.name}")
+        INDENT = INDENT + "-"
+        try:
+            return self._call_(*args, backend=backend, **kwargs)
+        finally:
+            INDENT = INDENT[:-1]
+
     def __call__(self, /, *args, backend=None, **kwargs):
         if not backends:
             # Fast path if no backends are installed
@@ -441,15 +452,6 @@ class _dispatch:
         #     if (val := args[pos] if pos < len(args) else kwargs.get(gname)) is not None
         # }
 
-        if self._is_testing and self._automatic_backends and backend_name is None:
-            # Special path if we are running networkx tests with a backend.
-            return self._convert_and_call_for_tests(
-                self._automatic_backends[0],
-                args,
-                kwargs,
-                fallback_to_nx=self._fallback_to_nx,
-            )
-
         # Check if any graph comes from a backend
         if self.list_graphs:
             # Make sure we don't lose values by consuming an iterator
@@ -488,7 +490,17 @@ class _dispatch:
                     getattr(g, "__networkx_backend__", "networkx")
                     for g in graphs_resolved.values()
                 }
-        if has_backends:
+        if self._is_testing and self._automatic_backends and backend_name is None:
+            # Special path if we are running networkx tests with a backend.
+            return self._convert_and_call_for_tests(
+                self._automatic_backends[0],
+                args,
+                kwargs,
+                graphs_resolved=graphs_resolved,
+                fallback_to_nx=self._fallback_to_nx,
+            )
+
+        if has_backends and graph_backend_names != {"networkx"}:
             # Dispatchable graphs found! Dispatch to backend function.
             # We don't handle calls with different backend graphs yet,
             # but we may be able to convert additional networkx graphs.
@@ -552,7 +564,45 @@ class _dispatch:
                         fallback_to_nx=self._fallback_to_nx,
                     )
         # Default: run with networkx on networkx inputs
-        return self.orig_func(*args, **kwargs)
+        return self._call_orig_func(args, kwargs, graphs_resolved)
+
+    def _call_orig_func(self, args, kwargs, graphs_resolved):
+        # Keep track of graphs that we enable caching for so we can clean them up
+        if self.name in {
+            "incremental_closeness_centrality",
+            "lukes_partitioning",
+            "connected_double_edge_swap",
+        }:
+            caching = ()
+        elif self.list_graphs:
+            caching = [
+                g
+                for gname, g in graphs_resolved.items()
+                if gname not in self.list_graphs
+                and getattr(g, "__networkx_backend__", "") == "networkx"
+                and getattr(g, "_cache", None) is None
+            ]
+            for gname in self.list_graphs:
+                caching.extend(
+                    g
+                    for g in graphs_resolved[gname]
+                    if getattr(g, "__networkx_backend__", "") == "networkx"
+                    and getattr(g, "_cache", None) is None
+                )
+        else:
+            caching = [
+                g
+                for g in graphs_resolved.values()
+                if getattr(g, "__networkx_backend__", "") == "networkx"
+                and getattr(g, "_cache", None) is None
+            ]
+        for g in caching:
+            g._cache = {}
+        try:
+            return self.orig_func(*args, **kwargs)
+        finally:
+            for g in caching:
+                g._cache = None
 
     def _can_backend_run(self, backend_name, /, *args, **kwargs):
         """Can the specified backend run this algorithms with these arguments?"""
@@ -713,15 +763,16 @@ class _dispatch:
         for gname in self.graphs:
             if gname in self.list_graphs:
                 bound.arguments[gname] = [
-                    backend.convert_from_nx(
+                    self._convert_from_nx(
+                        backend_name,
+                        backend,
                         g,
-                        edge_attrs=edge_attrs,
-                        node_attrs=node_attrs,
-                        preserve_edge_attrs=preserve_edge_attrs,
-                        preserve_node_attrs=preserve_node_attrs,
-                        preserve_graph_attrs=preserve_graph_attrs,
-                        name=self.name,
-                        graph_name=gname,
+                        edge_attrs,
+                        node_attrs,
+                        preserve_edge_attrs,
+                        preserve_node_attrs,
+                        preserve_graph_attrs,
+                        gname,
                     )
                     if getattr(g, "__networkx_backend__", "networkx") == "networkx"
                     else g
@@ -752,26 +803,64 @@ class _dispatch:
                 else:
                     preserve_graph = preserve_graph_attrs
                 if getattr(graph, "__networkx_backend__", "networkx") == "networkx":
-                    bound.arguments[gname] = backend.convert_from_nx(
+                    bound.arguments[gname] = self._convert_from_nx(
+                        backend_name,
+                        backend,
                         graph,
-                        edge_attrs=edges,
-                        node_attrs=nodes,
-                        preserve_edge_attrs=preserve_edges,
-                        preserve_node_attrs=preserve_nodes,
-                        preserve_graph_attrs=preserve_graph,
-                        name=self.name,
-                        graph_name=gname,
+                        edges,
+                        nodes,
+                        preserve_edges,
+                        preserve_nodes,
+                        preserve_graph,
+                        gname,
                     )
         bound_kwargs = bound.kwargs
         del bound_kwargs["backend"]
         return bound.args, bound_kwargs
+
+    def _convert_from_nx(
+        self,
+        backend_name,
+        backend,
+        graph,
+        edge_attrs,
+        node_attrs,
+        preserve_edge_attrs,
+        preserve_node_attrs,
+        preserve_graph_attrs,
+        graph_name,
+    ):
+        if (cache := getattr(graph, "_cache", None)) is not None:
+            key = (
+                backend_name,
+                frozenset(edge_attrs.items()) if edge_attrs is not None else None,
+                frozenset(node_attrs.items()) if node_attrs is not None else None,
+                preserve_edge_attrs,
+                preserve_node_attrs,
+                preserve_graph_attrs,
+            )
+            if (rv := cache.get(key)) is not None:
+                return rv
+        rv = backend.convert_from_nx(
+            graph,
+            edge_attrs=edge_attrs,
+            node_attrs=node_attrs,
+            preserve_edge_attrs=preserve_edge_attrs,
+            preserve_node_attrs=preserve_node_attrs,
+            preserve_graph_attrs=preserve_graph_attrs,
+            name=self.name,
+            graph_name=graph_name,
+        )
+        if cache is not None:
+            cache[key] = rv
+        return rv
 
     def _convert_and_call(self, backend_name, args, kwargs, *, fallback_to_nx=False):
         """Call this dispatchable function with a backend, converting graphs if necessary."""
         backend = _load_backend(backend_name)
         if not self._can_backend_run(backend_name, *args, **kwargs):
             if fallback_to_nx:
-                return self.orig_func(*args, **kwargs)
+                return self._call_orig_func(args, kwargs, graphs_resolved)
             msg = f"'{self.name}' not implemented by {backend_name}"
             if hasattr(backend, self.name):
                 msg += " with the given arguments"
@@ -784,19 +873,19 @@ class _dispatch:
             result = getattr(backend, self.name)(*converted_args, **converted_kwargs)
         except (NotImplementedError, NetworkXNotImplemented) as exc:
             if fallback_to_nx:
-                return self.orig_func(*args, **kwargs)
+                return self._call_orig_func(args, kwargs, graphs_resolved)
             raise
 
         return result
 
     def _convert_and_call_for_tests(
-        self, backend_name, args, kwargs, *, fallback_to_nx=False
+        self, backend_name, args, kwargs, *, graphs_resolved, fallback_to_nx=False
     ):
         """Call this dispatchable function with a backend; for use with testing."""
         backend = _load_backend(backend_name)
         if not self._can_backend_run(backend_name, *args, **kwargs):
             if fallback_to_nx or not self.graphs:
-                return self.orig_func(*args, **kwargs)
+                return self._call_orig_func(args, kwargs, graphs_resolved)
 
             import pytest
 
@@ -849,7 +938,7 @@ class _dispatch:
             result = getattr(backend, self.name)(*converted_args, **converted_kwargs)
         except (NotImplementedError, NetworkXNotImplemented) as exc:
             if fallback_to_nx:
-                return self.orig_func(*args2, **kwargs2)
+                return self._call_orig_func(args2, kwargs2, graphs_resolved)
             import pytest
 
             pytest.xfail(
@@ -935,7 +1024,7 @@ class _dispatch:
             # For graph return types (e.g. generators), we compare that results are
             # the same between the backend and networkx, then return the original
             # networkx result so the iteration order will be consistent in tests.
-            G = self.orig_func(*args2, **kwargs2)
+            G = self._call_orig_func(args2, kwargs2, graphs_resolved)
             if not nx.utils.graphs_equal(G, converted_result):
                 assert G.number_of_nodes() == converted_result.number_of_nodes()
                 assert G.number_of_edges() == converted_result.number_of_edges()

@@ -303,6 +303,8 @@ class Graph:
     True
     """
 
+    __networkx_backend__ = "networkx"
+
     _adj = _CachedPropertyResetterAdj()
     _node = _CachedPropertyResetterNode()
 
@@ -370,6 +372,8 @@ class Graph:
             convert.to_networkx_graph(incoming_graph_data, create_using=self)
         # load graph attributes (must be after convert)
         self.graph.update(attr)
+        # Temporary cache sometimes used when converting to a different backend
+        self._cache = None
 
     @cached_property
     def adj(self):
