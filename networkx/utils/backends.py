@@ -416,6 +416,7 @@ class _dispatch:
     def __call__(self, /, *args, backend=None, **kwargs):
         if not backends:
             # Fast path if no backends are installed
+            1 / 0
             return self.orig_func(*args, **kwargs)
 
         # Use `backend_name` in this function instead of `backend`
@@ -568,11 +569,16 @@ class _dispatch:
 
     def _call_orig_func(self, args, kwargs, graphs_resolved):
         # Keep track of graphs that we enable caching for so we can clean them up
-        if self.name in {
-            "incremental_closeness_centrality",
-            "lukes_partitioning",
-            "connected_double_edge_swap",
-        }:
+        if (
+            self.name
+            in {
+                # "minimum_cut",  # graphs passed in as kwargs
+                # "held_karp_ascent",
+                # "incremental_closeness_centrality",
+                # "lukes_partitioning",
+                # "connected_double_edge_swap",
+            }
+        ):
             caching = ()
         elif self.list_graphs:
             caching = [
@@ -596,13 +602,74 @@ class _dispatch:
                 if getattr(g, "__networkx_backend__", "") == "networkx"
                 and getattr(g, "_cache", None) is None
             ]
-        for g in caching:
-            g._cache = {}
+        frozen = []
+        if self.name in {
+            "held_karp_ascent",
+            "contracted_nodes",  # copy=
+            "relabel_nodes",  # copy=
+            "incremental_closeness_centrality",
+            "pad_graph",
+            "double_edge_swap",
+            "directed_edge_swap",
+            "connected_double_edge_swap",
+            "lukes_partitioning",  # XXX: does a deep copy; may not mutate
+            "is_kl_connected",  # XXX: does a deep copy or subgraph; may not mutate
+            "kl_connected_subgraph",  # XXX: does a deep copy or subgraph; may not mutate
+            "negative_edge_cycle",  # mutates temporarily
+            # "minimum_cut",  # graphs passed in as kwargs (this one modifies it)
+            # "minimum_st_edge_cut",  # graphs passed in as kwargs
+            # "minimum_st_node_cut",  # graphs passed in as kwargs
+        }:
+            for g in caching:
+                if getattr(g, "frozen", False):
+                    frozen.append(g)
+                for key in {
+                    "add_node",
+                    "add_nodes_from",
+                    "remove_node",
+                    "remove_nodes_from",
+                    "add_edge",
+                    "add_edges_from",
+                    "add_weighted_edges_from",
+                    "remove_edge",
+                    "remove_edges_from",
+                    "clear",
+                    "clear_edges",
+                    "frozen",
+                }:
+                    g.__dict__.pop(key, None)
+        else:
+            for g in caching:
+                if getattr(g, "frozen", False):
+                    frozen.append(g)
+                # g._cache = {}
+                nx.freeze(g)
         try:
             return self.orig_func(*args, **kwargs)
+        except Exception:
+            print("XXX:", self.name)
+            raise
         finally:
+            # for g in caching:
+            #     g._cache = None
             for g in caching:
-                g._cache = None
+                for key in {
+                    "add_node",
+                    "add_nodes_from",
+                    "remove_node",
+                    "remove_nodes_from",
+                    "add_edge",
+                    "add_edges_from",
+                    "add_weighted_edges_from",
+                    "remove_edge",
+                    "remove_edges_from",
+                    "clear",
+                    "clear_edges",
+                    "frozen",
+                }:
+                    g.__dict__.pop(key, None)
+            for g in frozen:
+                nx.freeze(g)
 
     def _can_backend_run(self, backend_name, /, *args, **kwargs):
         """Can the specified backend run this algorithms with these arguments?"""

@@ -450,6 +450,8 @@ def minimum_cut(flowG, _s, _t, capacity="capacity", flow_func=None, **kwargs):
     if kwargs.get("cutoff") is not None and flow_func is preflow_push:
         raise nx.NetworkXError("cutoff should not be specified.")
 
+    print("flow_func", flow_func.__name__, flow_func)
+    print("kwargs", kwargs)
     R = flow_func(flowG, _s, _t, capacity=capacity, value_only=True, **kwargs)
     # Remove saturated edges from the residual network
     cutset = [(u, v, d) for u, v, d in R.edges(data=True) if d["flow"] == d["capacity"]]
