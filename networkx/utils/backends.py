@@ -231,7 +231,7 @@ def _get_backends(group, *, load_and_call=False):
     Notes
     ------
     If a backend is defined more than once, a warning is issued.
-    The `nx-loopback` backend is removed if it exists, as it is only available during testing.
+    The `nx_loopback` backend is removed if it exists, as it is only available during testing.
     A warning is displayed if an error occurs while loading a backend.
     """
     items = entry_points(group=group)
@@ -254,7 +254,8 @@ def _get_backends(group, *, load_and_call=False):
                 )
         else:
             rv[ep.name] = ep
-    rv.pop("nx-loopback", None)
+    # nx_loopback backend is only available when testing (added in conftest.py)
+    rv.pop("nx_loopback", None)
     return rv
 
 
@@ -630,6 +631,19 @@ class _dispatchable:
     def __call__(self, /, *args, backend=None, **kwargs):
         """Returns the result of the original function, or the backend function if
         the backend is specified and that backend implements `func`."""
+        if kwargs:
+            # Separate `<backend>_kwargs=...` keywords
+            new_kwargs = {}
+            backends_kwargs = {}
+            for k, v in kwargs.items():
+                if k.endswith("_kwargs"):
+                    backends_kwargs[k[:-7]] = v
+                else:
+                    new_kwargs[k] = v
+            kwargs = new_kwargs
+            # Should we warn or log if `backends_kwargs` has backends that are not installed?
+        else:
+            backends_kwargs = kwargs
 
         if not backends:
             # Fast path if no backends are installed
@@ -718,6 +732,7 @@ class _dispatchable:
                 backend_priority[0],
                 args,
                 kwargs,
+                backends_kwargs,
                 fallback_to_nx=self._fallback_to_nx,
             )
 
@@ -759,9 +774,11 @@ class _dispatchable:
                         graph_backend_name,
                         args,
                         kwargs,
+                        backends_kwargs,
                         fallback_to_nx=self._fallback_to_nx,
                     )
                 # All graphs are backend graphs--no need to convert!
+                kwargs.update(backends_kwargs.get(graph_backend_name, {}))
                 _logger.debug(
                     f"using backend '{graph_backend_name}' for call to `{self.name}' "
                     f"with args: {args}, kwargs: {kwargs}"
@@ -775,7 +792,7 @@ class _dispatchable:
         # If backend was explicitly given by the user, so we need to use it no matter what
         if backend_name is not None:
             return self._convert_and_call(
-                backend_name, args, kwargs, fallback_to_nx=False
+                backend_name, args, kwargs, backends_kwargs, fallback_to_nx=False
             )
 
         # Only networkx graphs; try to convert and run with a backend with automatic
@@ -806,11 +823,17 @@ class _dispatchable:
         ):
             # Should we warn or log if we don't convert b/c the input will be mutated?
             for backend_name in backend_priority:
-                if self._should_backend_run(backend_name, *args, **kwargs):
+                if self._should_backend_run(
+                    backend_name,
+                    *args,
+                    **kwargs,
+                    **backends_kwargs.get(backend_name, {}),
+                ):
                     return self._convert_and_call(
                         backend_name,
                         args,
                         kwargs,
+                        backends_kwargs,
                         fallback_to_nx=self._fallback_to_nx,
                     )
         # Default: run with networkx on networkx inputs
@@ -1167,10 +1190,14 @@ class _dispatchable:
 
         return rv
 
-    def _convert_and_call(self, backend_name, args, kwargs, *, fallback_to_nx=False):
+    def _convert_and_call(
+        self, backend_name, args, kwargs, backends_kwargs, *, fallback_to_nx=False
+    ):
         """Call this dispatchable function with a backend, converting graphs if necessary."""
         backend = _load_backend(backend_name)
-        if not self._can_backend_run(backend_name, *args, **kwargs):
+        if not self._can_backend_run(
+            backend_name, *args, **kwargs, **backends_kwargs.get(backend_name, {})
+        ):
             if fallback_to_nx:
                 return self.orig_func(*args, **kwargs)
             msg = f"'{self.name}' not implemented by {backend_name}"
@@ -1182,6 +1209,7 @@ class _dispatchable:
             converted_args, converted_kwargs = self._convert_arguments(
                 backend_name, args, kwargs, use_cache=config.cache_converted_graphs
             )
+            converted_kwargs.update(backends_kwargs.get(backend_name, {}))
             _logger.debug(
                 f"using backend '{backend_name}' for call to `{self.name}' "
                 f"with args: {converted_args}, kwargs: {converted_kwargs}"
@@ -1195,11 +1223,13 @@ class _dispatchable:
         return result
 
     def _convert_and_call_for_tests(
-        self, backend_name, args, kwargs, *, fallback_to_nx=False
+        self, backend_name, args, kwargs, backends_kwargs, *, fallback_to_nx=False
     ):
         """Call this dispatchable function with a backend; for use with testing."""
         backend = _load_backend(backend_name)
-        if not self._can_backend_run(backend_name, *args, **kwargs):
+        if not self._can_backend_run(
+            backend_name, *args, **kwargs, **backends_kwargs.get(backend_name, {})
+        ):
             if fallback_to_nx or not self.graphs:
                 return self.orig_func(*args, **kwargs)
 
@@ -1261,6 +1291,7 @@ class _dispatchable:
             converted_args, converted_kwargs = self._convert_arguments(
                 backend_name, args1, kwargs1, use_cache=False
             )
+            converted_kwargs.update(backends_kwargs.get(backend_name, {}))
             _logger.debug(
                 f"using backend '{backend_name}' for call to `{self.name}' "
                 f"with args: {converted_args}, kwargs: {converted_kwargs}"
