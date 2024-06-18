@@ -759,7 +759,9 @@ class _dispatchable:
 
         if not backends:
             # Fast path if no backends are installed
-            return self.orig_func(*args, **kwargs)
+            return self.orig_func(
+                *args, **kwargs, **backends_kwargs.get("networkx", {})
+            )
 
         # Use `backend_name` in this function instead of `backend`
         backend_name = backend if backend is not None else config.backend
@@ -849,7 +851,11 @@ class _dispatchable:
                 converted_args, converted_kwargs = self._convert_arguments(
                     "networkx", args, kwargs, use_cache=config.cache_converted_graphs
                 )
-                return self.orig_func(*converted_args, **converted_kwargs)
+                return self.orig_func(
+                    *converted_args,
+                    **converted_kwargs,
+                    **backends_kwargs.get("networkx", {}),
+                )
 
             if len(other_backend_names) != 1:
                 # Future work: convert between backends and run if multiple backends found
@@ -923,7 +929,9 @@ class _dispatchable:
         if backend_name is not None:
             if backend_name == "networkx":
                 # No conversions necessary here
-                return self.orig_func(*args, **kwargs)
+                return self.orig_func(
+                    *args, **kwargs, **backends_kwargs.get("networkx", {})
+                )
             return self._convert_and_call(
                 backend_name, args, kwargs, backends_kwargs, fallback_to_nx=False
             )
@@ -973,7 +981,7 @@ class _dispatchable:
                             f"when calling `{self.name}`. Trying next backend..."
                         )
         # Default: run with networkx on networkx inputs
-        return self.orig_func(*args, **kwargs)
+        return self.orig_func(*args, **kwargs, **backends_kwargs.get("networkx", {}))
 
     def _can_backend_run(self, backend_name, /, *args, **kwargs):
         """Can the specified backend run this algorithm with these arguments?"""
@@ -1346,7 +1354,9 @@ class _dispatchable:
             backend_name, *args, **kwargs, **backends_kwargs.get(backend_name, {})
         ):
             if fallback_to_nx:
-                return self.orig_func(*args, **kwargs)
+                return self.orig_func(
+                    *args, **kwargs, **backends_kwargs.get("networkx", {})
+                )
             msg = f"'{self.name}' not implemented by {backend_name}"
             if hasattr(backend, self.name):
                 msg += " with the given arguments"
@@ -1364,7 +1374,9 @@ class _dispatchable:
             result = getattr(backend, self.name)(*converted_args, **converted_kwargs)
         except NotImplementedError as exc:
             if fallback_to_nx:
-                return self.orig_func(*args, **kwargs)
+                return self.orig_func(
+                    *args, **kwargs, **backends_kwargs.get("networkx", {})
+                )
             raise
 
         return result
@@ -1378,7 +1390,9 @@ class _dispatchable:
             backend_name, *args, **kwargs, **backends_kwargs.get(backend_name, {})
         ):
             if fallback_to_nx or not self.graphs:
-                return self.orig_func(*args, **kwargs)
+                return self.orig_func(
+                    *args, **kwargs, **backends_kwargs.get("networkx", {})
+                )
 
             import pytest
 
@@ -1446,7 +1460,9 @@ class _dispatchable:
             result = getattr(backend, self.name)(*converted_args, **converted_kwargs)
         except NotImplementedError as exc:
             if fallback_to_nx:
-                return self.orig_func(*args2, **kwargs2)
+                return self.orig_func(
+                    *args2, **kwargs2, **backends_kwargs.get("networkx", {})
+                )
             import pytest
 
             pytest.xfail(
@@ -1643,7 +1659,7 @@ class _dispatchable:
             # For graph return types (e.g. generators), we compare that results are
             # the same between the backend and networkx, then return the original
             # networkx result so the iteration order will be consistent in tests.
-            G = self.orig_func(*args2, **kwargs2)
+            G = self.orig_func(*args2, **kwargs2, **backends_kwargs.get("networkx", {}))
             if not nx.utils.graphs_equal(G, converted_result):
                 assert G.number_of_nodes() == converted_result.number_of_nodes()
                 assert G.number_of_edges() == converted_result.number_of_edges()

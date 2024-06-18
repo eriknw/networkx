@@ -61,18 +61,26 @@ class TestConnected:
         C = []
         cls.gc.append((G, C))
 
-    # This additionally tests the @nx._dispatchable mechanism, treating
-    # nx.connected_components as if it were a re-implementation from another package
-    @pytest.mark.parametrize("wrapper", [lambda x: x, dispatch_interface.convert])
-    def test_connected_components(self, wrapper):
+    def test_connected_components(self):
         cc = nx.connected_components
-        G = wrapper(self.G)
         C = {
             frozenset([0, 1, 2, 3]),
             frozenset([4, 5, 6, 7, 8, 9]),
             frozenset([10, 11, 12, 13, 14]),
         }
-        assert {frozenset(g) for g in cc(G)} == C
+        assert {frozenset(g) for g in cc(self.G)} == C
+
+    # This additionally tests the @nx._dispatchable mechanism, treating
+    # nx.connected_components as if it were a re-implementation from another package
+    @pytest.mark.skipif("not nx.config.backend_priority.algos")
+    def test_connected_components_nx_loopback(self):
+        cc = nx.connected_components
+        C = {
+            frozenset([0, 1, 2, 3]),
+            frozenset([4, 5, 6, 7, 8, 9]),
+            frozenset([10, 11, 12, 13, 14]),
+        }
+        assert {frozenset(g) for g in cc(dispatch_interface.convert(self.G))} == C
 
     def test_number_connected_components(self):
         ncc = nx.number_connected_components

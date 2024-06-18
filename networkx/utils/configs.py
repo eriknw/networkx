@@ -188,8 +188,7 @@ class Config:
 
     # Allow to be used as context manager
     def __call__(self, **kwargs):
-        for key, val in kwargs.items():
-            self._check_config(key, val)
+        kwargs = {key: self._on_setattr(key, val) for key, val in kwargs.items()}
         prev = dict(self)
         for key, val in kwargs.items():
             setattr(self, key, val)
@@ -321,7 +320,7 @@ class NetworkXConfig(Config):
         from .backends import backend_info
 
         if key == "backend":
-            if value is not None and value not in backends:
+            if value is not None and value not in backend_info:
                 raise ValueError(f"Unknown backend when setting {key!r}: {value}")
         elif key == "backend_priority":
             if not isinstance(value, BackendPriorities):

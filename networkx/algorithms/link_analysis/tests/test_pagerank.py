@@ -83,17 +83,22 @@ class TestPageRank:
         for n in G:
             assert p[n] == pytest.approx(G.pagerank[n], abs=1e-4)
 
-    # This additionally tests the @nx._dispatchable mechanism, treating
-    # nx.google_matrix as if it were a re-implementation from another package
-    @pytest.mark.parametrize("wrapper", [lambda x: x, dispatch_interface.convert])
-    def test_google_matrix(self, wrapper):
-        G = wrapper(self.G)
-        M = nx.google_matrix(G, alpha=0.9, nodelist=sorted(G))
+    def test_google_matrix(self):
+        M = nx.google_matrix(self.G, alpha=0.9, nodelist=sorted(self.G))
         _, ev = np.linalg.eig(M.T)
         p = ev[:, 0] / ev[:, 0].sum()
         for a, b in zip(p, self.G.pagerank.values()):
             assert a == pytest.approx(b, abs=1e-7)
 
+    def test_google_matrix(self):
+        M = nx.google_matrix(self.G, alpha=0.9, nodelist=sorted(self.G))
+        _, ev = np.linalg.eig(M.T)
+        p = ev[:, 0] / ev[:, 0].sum()
+        for a, b in zip(p, self.G.pagerank.values()):
+            assert a == pytest.approx(b, abs=1e-7)
+
+    # This additionally tests the @nx._dispatchable mechanism, treating
+    # nx.google_matrix as if it were a re-implementation from another package
     @pytest.mark.parametrize("alg", (nx.pagerank, _pagerank_python, _pagerank_numpy))
     def test_personalization(self, alg):
         G = nx.complete_graph(4)

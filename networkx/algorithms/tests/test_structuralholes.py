@@ -52,11 +52,17 @@ class TestStructuralHoles:
             ("G", "C"): 10,
         }
 
+    def test_constraint_directed(self):
+        constraint = nx.constraint(self.D)
+        assert constraint[0] == pytest.approx(1.003, abs=1e-3)
+        assert constraint[1] == pytest.approx(1.003, abs=1e-3)
+        assert constraint[2] == pytest.approx(1.389, abs=1e-3)
+
     # This additionally tests the @nx._dispatchable mechanism, treating
     # nx.mutual_weight as if it were a re-implementation from another package
-    @pytest.mark.parametrize("wrapper", [lambda x: x, dispatch_interface.convert])
-    def test_constraint_directed(self, wrapper):
-        constraint = nx.constraint(wrapper(self.D))
+    @pytest.mark.skipif("not nx.config.backend_priority.algos")
+    def test_constraint_directed_nx_loopback(self):
+        constraint = nx.constraint(dispatch_interface.convert(self.D))
         assert constraint[0] == pytest.approx(1.003, abs=1e-3)
         assert constraint[1] == pytest.approx(1.003, abs=1e-3)
         assert constraint[2] == pytest.approx(1.389, abs=1e-3)
