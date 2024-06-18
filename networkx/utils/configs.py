@@ -228,14 +228,14 @@ class BackendPriorities(Config, strict=False):
     generators: list[str]
 
     def _on_setattr(self, key, value):
-        from .backends import _registered_algorithms, backends
+        from .backends import _registered_algorithms, backend_info
 
         if key in {"algos", "generators"}:
             if not (isinstance(value, list) and all(isinstance(x, str) for x in value)):
                 raise TypeError(
                     f"{key!r} config must be a list of backend names; got {value!r}"
                 )
-            if missing := {x for x in value if x not in backends}:
+            if missing := {x for x in value if x not in backend_info}:
                 missing = ", ".join(map(repr, sorted(missing)))
                 raise ValueError(f"Unknown backend when setting {key!r}: {missing}")
         elif key not in _registered_algorithms:
@@ -268,7 +268,8 @@ class NetworkXConfig(Config):
         TODO: update this documentation!
         Enable automatic conversion of graphs to backend graphs for algorithms
         implemented by the backend. Priority is given to backends listed earlier.
-        Default is empty list.
+        If ``"networkx"`` backend name is given priority, then input graphs from
+        backends will be converted to networkx graphs. Default is empty list.
 
     backends : Config mapping of backend names to backend Config
         The keys of the Config mapping are names of all installed NetworkX backends,
@@ -316,7 +317,7 @@ class NetworkXConfig(Config):
     warnings: set[str]
 
     def _on_setattr(self, key, value):
-        from .backends import backends
+        from .backends import backend_info
 
         if key == "backend":
             if value is not None and value not in backends:
@@ -335,7 +336,7 @@ class NetworkXConfig(Config):
                 raise TypeError(
                     f"{key!r} config must be a Config of backend configs; got {value!r}"
                 )
-            if missing := {x for x in value if x not in backends}:
+            if missing := {x for x in value if x not in backend_info}:
                 missing = ", ".join(map(repr, sorted(missing)))
                 raise ValueError(f"Unknown backend when setting {key!r}: {missing}")
         elif key == "cache_converted_graphs":
