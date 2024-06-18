@@ -252,12 +252,18 @@ class NetworkXConfig(Config):
         keep it consistent. ``G.__networkx_cache__.clear()`` manually clears the cache.
         Default is True.
 
+    warnings : set of strings
+        Control which warnings from NetworkX are emitted. Valid elements:
+
+        - `"cache"`: when a cached value is used from ``G.__networkx_cache__``.
+
     Notes
     -----
     Environment variables may be used to control some default configurations:
 
     - NETWORKX_BACKEND_PRIORITY: set `backend_priority` from comma-separated names.
     - NETWORKX_CACHE_CONVERTED_GRAPHS: set `cache_converted_graphs` to True if nonempty.
+    - NETWORKX_WARNINGS: set `warnings` from comma-separated names.
 
     This is a global configuration. Use with caution when using from multiple threads.
     """
@@ -266,6 +272,7 @@ class NetworkXConfig(Config):
     backend_priority: list[str]
     backends: Config
     cache_converted_graphs: bool
+    warnings: set[str]
 
     def _check_config(self, key, value):
         from .backends import backends
@@ -296,6 +303,18 @@ class NetworkXConfig(Config):
         elif key == "cache_converted_graphs":
             if not isinstance(value, bool):
                 raise TypeError(f"{key!r} config must be True or False; got {value!r}")
+        elif key == "warnings":
+            if not (isinstance(value, set) and all(isinstance(x, str) for x in value)):
+                raise TypeError(
+                    f"{key!r} config must be a set of warning names; got {value!r}"
+                )
+            known_warnings = {"cache"}
+            if missing := {x for x in value if x not in known_warnings}:
+                missing = ", ".join(map(repr, sorted(missing)))
+                raise ValueError(
+                    f"Unknown warning when setting {key!r}: {missing}. Valid entries: "
+                    + ", ".join(sorted(known_warnings))
+                )
 
 
 # Backend configuration will be updated in backends.py
@@ -306,4 +325,9 @@ config = NetworkXConfig(
     cache_converted_graphs=bool(
         os.environ.get("NETWORKX_CACHE_CONVERTED_GRAPHS", True)
     ),
+    warnings={
+        x.strip()
+        for x in os.environ.get("NETWORKX_WARNINGS", "cache").split(",")
+        if x.strip()
+    },
 )
