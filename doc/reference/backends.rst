@@ -3,16 +3,19 @@ Backends and Configs
 ********************
 
 Backends let you execute an alternative backend implementation instead of NetworkX's
-pure Python dictionaries implementation. Configs provides library level storage
-of configuration settings that otherwise might come from environment variables.
+pure Python dictionaries implementation. Configs provide library-level storage
+of configuration settings that can also come from environment variables.
 
-.. note:: Both NetworkX backend and config systems are new and and actively developed,
-   with frequent updates and improvements. While the backend user interface is unlikely
-   to make breaking changes, the backend developers may see some need to update
-   their code (within a deprecation period). The NetworkX backend developers should
-   regularly monitor the new updates to maintain compatibility. Participating in weekly
+.. note:: NetworkX backend and configuration systems are receiving frequent updates
+   and improvements. The user interface for using backends is generally stable.
+   In the unlikely case where compatibility-breaking changes are necessary to the
+   backend or config APIs, the standard `deprecation policy <https://networkx.org/documentation/stable/developer/deprecations.html>`_
+   of NetworkX may not be followed. This flexibility is intended to allow us to
+   respond rapidly to user feedback and improve usability, and care will be taken
+   to avoid unnecessary disruption. Developers of NetworkX backends should regularly
+   monitor updates to maintain compatibility. Participating in weekly
    `NX-dispatch meetings <https://scientific-python.org/calendars/networkx.ics>`_
-   is an excellent way to stay updated and to contribute to the ongoing discussions.
+   is an excellent way to stay updated and contribute to the ongoing discussions.
 
 Backends
 --------
