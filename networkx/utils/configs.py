@@ -298,6 +298,7 @@ class NetworkXConfig(Config):
     - ``NETWORKX_BACKEND_PRIORITY``: set ``backend_priority`` from comma-separated names.
     - ``NETWORKX_CACHE_CONVERTED_GRAPHS``: set ``cache_converted_graphs`` to True if nonempty.
     - ``NETWORKX_BACKEND_PRIORITY``: set `backend_priority` from comma-separated names.
+    - ``NETWORKX_WARNINGS``: set `warnings` from comma-separated names.
 
     ``backend`` and ``backend_priority`` configurations are similar in that they can
     both be used to run an algorithm with a backend (converting inputs if necessary),
