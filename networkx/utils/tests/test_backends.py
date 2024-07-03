@@ -77,6 +77,9 @@ def test_graph_converter_needs_backend():
             type(nx.from_scipy_sparse_array(A, backend="nx_loopback")) is LoopbackGraph
         )
         assert side_effects == [1, 1]
+        # backend="networkx" is default implementation
+        assert type(nx.from_scipy_sparse_array(A, backend="networkx")) is nx.Graph
+        assert side_effects == [1, 1]
         nx.config.backend = "nx_loopback"  # This is like doing `backend="nx_loopback"`
         assert type(nx.from_scipy_sparse_array(A)) is LoopbackGraph
         assert side_effects == [1, 1, 1]
@@ -113,6 +116,40 @@ def test_backends_kwargs():
     # also try to pass it in via `nx_loopback_kwargs`, then it's defined twice.
     with pytest.raises(TypeError, match="multiple values.*normalized"):
         nx.betweenness_centrality(G, nx_loopback_kwargs={"normalized": False})
+
+
+@pytest.mark.skipif(
+    "not nx.config.backend_priority.algos "
+    "or nx.config.backend_priority.algos[0] != 'nx_loopback'"
+)
+def test_networkx_backend():
+    """Test using `backend="networkx"` in a dispatchable function."""
+    # (Implementing this test is harder than it should be)
+    from networkx.classes.tests.dispatch_interface import (
+        LoopbackBackendInterface,
+        LoopbackGraph,
+    )
+
+    G = LoopbackGraph()
+    G.add_edges_from([(0, 1), (1, 2), (1, 3), (2, 4)])
+
+    @staticmethod
+    def convert_to_nx(obj, *, name=None):
+        if isinstance(obj, LoopbackGraph):
+            new_graph = nx.Graph()
+            new_graph.__dict__.update(obj.__dict__)
+            return new_graph
+        return obj
+
+    # *This mutates LoopbackBackendInterface!*
+    # This uses the same trick as in the previous test.
+    orig_convert_to_nx = LoopbackBackendInterface.convert_to_nx
+    LoopbackBackendInterface.convert_to_nx = convert_to_nx
+    try:
+        G2 = nx.ego_graph(G, 0, backend="networkx")
+        assert type(G2) is nx.Graph
+    finally:
+        LoopbackBackendInterface.convert_to_nx = staticmethod(orig_convert_to_nx)
 
 
 def test_dispatchable_are_functions():
