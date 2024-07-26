@@ -343,6 +343,7 @@ import os
 import warnings
 from functools import partial
 from importlib.metadata import entry_points
+from numbers import Number
 
 import networkx as nx
 
@@ -351,6 +352,8 @@ from .decorators import argmap
 __all__ = ["_dispatchable"]
 
 _logger = logging.getLogger(__name__)
+funcseen = set()
+funclog = open("scalar_funcs.log", "w")
 
 
 def _do_nothing():
@@ -1442,7 +1445,7 @@ class _dispatchable:
         ):
             raise RuntimeError(f"`returns_graph` is incorrect for {self.name}")
 
-        def check_result(val, depth=0):
+        def check_result(val, depth=0, log_scalar=False):
             if isinstance(val, np.number):
                 raise RuntimeError(
                     f"{self.name} returned a numpy scalar {val} ({type(val)}, depth={depth})"
@@ -1461,6 +1464,9 @@ class _dispatchable:
             if isinstance(val, Mapping):
                 for x in val.values():
                     check_result(x, depth=depth + 1)
+            if log_scalar and isinstance(val, Number) and self.name not in funcseen:
+                funcseen.add(self.name)
+                funclog.write(f"{self.__module__}.{self.__name__} : {self.name}\n")
 
         def check_iterator(it):
             for val in it:
@@ -1479,7 +1485,7 @@ class _dispatchable:
             result = check_iterator(result)
         else:
             try:
-                check_result(result)
+                check_result(result, log_scalar=True)
             except RuntimeError as exc:
                 raise RuntimeError(
                     f"{self.name} returned a numpy scalar {result} ({type(result)})"
