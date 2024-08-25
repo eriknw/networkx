@@ -822,7 +822,7 @@ class _dispatchable:
 
         if not backends:
             # Fast path if no backends are installed
-            if backend is not None:
+            if backend is not None and backend != "networkx":
                 raise ImportError(f"'{backend}' backend is not installed")
             return self.orig_func(
                 *args, **kwargs, **backends_kwargs.get("networkx", {})
@@ -936,7 +936,7 @@ class _dispatchable:
                     f"{backend_name!r}. Automatic conversions between backends "
                     "may become possible in future releases."
                 )
-            if graph_backend_name not in backends:
+            if graph_backend_name not in backend_info:
                 raise ImportError(f"'{graph_backend_name}' backend is not installed")
             if (
                 "networkx" in graph_backend_names
