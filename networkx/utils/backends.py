@@ -812,11 +812,19 @@ class _dispatchable:
             backends_kwargs = {}
             for k, v in kwargs.items():
                 if k.endswith("_kwargs"):
-                    backends_kwargs[k[:-7]] = v
+                    backend_name = k[:-7]  # len("_kwargs") == 7
+                    backends_kwargs[backend_name] = v
+                    if backend_name not in backends:
+                        _logger.debug(
+                            "`%s_kwargs=` keyword argument passed to `%s', but '%s' "
+                            "backend is not installed. Ignoring.",
+                            backend_name,
+                            self.name,
+                            backend_name,
+                        )
                 else:
                     new_kwargs[k] = v
             kwargs = new_kwargs
-            # Should we warn or log if `backends_kwargs` has backends that are not installed?
         else:
             backends_kwargs = kwargs
 
@@ -964,7 +972,8 @@ class _dispatchable:
                             fallback_to_nx=self._fallback_to_nx,
                         )
                     # All graphs are backend graphs--no need to convert!
-                    kwargs.update(backends_kwargs.get(graph_backend_name, {}))
+                    if graph_backend_name in backends_kwargs:
+                        kwargs.update(backends_kwargs[graph_backend_name])
                     _logger.debug(
                         "Using backend '%s' for call to `%s' with args: %s, kwargs: %s",
                         graph_backend_name,
@@ -1043,7 +1052,9 @@ class _dispatchable:
                 if self._should_backend_run(
                     backend_name,
                     args,
-                    {**kwargs, **backends_kwargs.get(backend_name, {})},
+                    kwargs
+                    if backend_name not in backends_kwargs
+                    else {**kwargs, **backends_kwargs[backend_name]},
                 ):
                     try:
                         return self._convert_and_call(
@@ -1475,11 +1486,14 @@ class _dispatchable:
     ):
         """Call this dispatchable function with a backend, converting graphs if necessary."""
         backend = _load_backend(backend_name)
-        # Don't log in `_can_backend_run` here to avoid duplicating info in the exception
         if not self._can_backend_run(
             backend_name,
             args,
             {**kwargs, **backends_kwargs.get(backend_name, {})},
+            kwargs
+            if backend_name not in backends_kwargs
+            else {**kwargs, **backends_kwargs[backend_name]},
+            # Don't log in `_can_backend_run` here to avoid duplicating info in the exception
             log=fallback_to_nx,
         ):
             if fallback_to_nx:
@@ -1503,7 +1517,8 @@ class _dispatchable:
             converted_args, converted_kwargs = self._convert_arguments(
                 backend_name, args, kwargs, use_cache=config.cache_converted_graphs
             )
-            converted_kwargs.update(backends_kwargs.get(backend_name, {}))
+            if backend_name in backends_kwargs:
+                converted_kwargs.update(backends_kwargs[backend_name])
             _logger.debug(
                 "Using backend '%s' for call to `%s' with args: %s, kwargs: %s",
                 backend_name,
@@ -1533,7 +1548,11 @@ class _dispatchable:
         """Call this dispatchable function with a backend; for use with testing."""
         backend = _load_backend(backend_name)
         if not self._can_backend_run(
-            backend_name, args, {**kwargs, **backends_kwargs.get(backend_name, {})}
+            backend_name,
+            args,
+            kwargs
+            if backend_name not in backends_kwargs
+            else {**kwargs, **backends_kwargs[backend_name]},
         ):
             if fallback_to_nx or not self.graphs:
                 if fallback_to_nx:
@@ -1607,7 +1626,8 @@ class _dispatchable:
             converted_args, converted_kwargs = self._convert_arguments(
                 backend_name, args1, kwargs1, use_cache=False
             )
-            converted_kwargs.update(backends_kwargs.get(backend_name, {}))
+            if backend_name in backends_kwargs:
+                converted_kwargs.update(backends_kwargs[backend_name])
             _logger.debug(
                 "Using backend '%s' for call to `%s' with args: %s, kwargs: %s",
                 backend_name,
