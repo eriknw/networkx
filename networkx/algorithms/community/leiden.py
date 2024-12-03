@@ -18,7 +18,7 @@ def leiden_communities(G, weight="weight", resolution=1, max_level=None, seed=No
     """Find the best partition of a graph using the Leiden Community Detection
     Algorithm.
 
-    TODO: more documentation.
+    TODO: more documentation
 
     Parameters
     ----------
@@ -76,7 +76,6 @@ def leiden_partitions(G, weight="weight", resolution=1, seed=None):
     """Yields partitions for each level of the Leiden Community Detection Algorithm
 
     TODO: more documentation.
-    TODO: admonish that this is a backend-only function.
     TODO: add Examples section (that calls a backend?)
 
     Parameters
