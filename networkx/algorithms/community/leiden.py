@@ -1,4 +1,4 @@
-"""Function for detecting communities based on Leiden Community Detection
+"""Functions for detecting communities based on Leiden Community Detection
 Algorithm"""
 
 import itertools
@@ -13,14 +13,12 @@ __all__ = ["leiden_communities", "leiden_partitions"]
 
 @not_implemented_for("directed")
 @py_random_state("seed")
-@nx._dispatchable(edge_attrs="weight")
+@nx._dispatchable(edge_attrs="weight", implemented_by_nx=False)
 def leiden_communities(G, weight="weight", resolution=1, max_level=None, seed=None):
     """Find the best partition of a graph using the Leiden Community Detection
     Algorithm.
 
     TODO: more documentation.
-    TODO: admonish that this is a backend-only function.
-    TODO: add Examples section (that calls a backend?)
 
     Parameters
     ----------
@@ -45,6 +43,13 @@ def leiden_communities(G, weight="weight", resolution=1, max_level=None, seed=No
         A list of sets (partition of `G`). Each set represents one community and contains
         all the nodes that constitute it.
 
+    Examples
+    --------
+    >>> import networkx as nx
+    >>> G = nx.petersen_graph()
+    >>> nx.community.leiden_communities(G, backend="example_backend")  # doctest: +SKIP
+    [{2, 3, 5, 7, 8}, {0, 1, 4, 6, 9}]
+
     References
     ----------
     .. [1] Traag, V.A., Waltman, L. & van Eck, N.J. From Leiden to Leiden: guaranteeing
@@ -66,7 +71,7 @@ def leiden_communities(G, weight="weight", resolution=1, max_level=None, seed=No
 
 @not_implemented_for("directed")
 @py_random_state("seed")
-@nx._dispatchable(edge_attrs="weight")
+@nx._dispatchable(edge_attrs="weight", implemented_by_nx=False)
 def leiden_partitions(G, weight="weight", resolution=1, seed=None):
     """Yields partitions for each level of the Leiden Community Detection Algorithm
 
