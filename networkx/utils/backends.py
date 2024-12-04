@@ -2346,13 +2346,13 @@ class _dispatchable:
                 lines.append("")
 
         # We assume the docstrings are indented by four spaces (true for now)
-        new_doc = self._orig_doc.rstrip()
-        if not new_doc:
+        new_doc = self._orig_doc or ""
+        if not new_doc.rstrip():
             new_doc = f"The original docstring for {self.name} was empty."
         if self.backends:
             lines.pop()  # Remove last empty line
             to_add = "\n    ".join(lines)
-            new_doc = f"{new_doc}\n\n    {to_add}"
+            new_doc = f"{new_doc.rstrip()}\n\n    {to_add}"
 
         # Add "Attention" admonishment after the one line summary
         if "networkx" not in self.backends:
