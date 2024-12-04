@@ -2297,7 +2297,7 @@ class _dispatchable:
 
         if self.backends == {"networkx"}:
             return self._orig_doc
-        # Add "Backends" section to the end
+        # Add "Backends" section to the bottom of the docstring (if there are backends)
         lines = [
             "Backends",
             "--------",
@@ -2354,7 +2354,7 @@ class _dispatchable:
             to_add = "\n    ".join(lines)
             new_doc = f"{new_doc.rstrip()}\n\n    {to_add}"
 
-        # Add "Attention" admonishment after the one line summary
+        # For backend-only funcs, add "Attention" admonishment after the one line summary
         if "networkx" not in self.backends:
             lines = new_doc.split("\n")
             index = 0
