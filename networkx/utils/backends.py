@@ -2297,6 +2297,7 @@ class _dispatchable:
 
         if self.backends == {"networkx"}:
             return self._orig_doc
+        # Add "Backends" section to the end
         lines = [
             "Backends",
             "--------",
@@ -2343,25 +2344,23 @@ class _dispatchable:
             if func_url := func_info.get("url"):
                 lines.append(f"[`Source <{func_url}>`_]")
                 lines.append("")
+
         # We assume the docstrings are indented by four spaces (true for now)
+        new_doc = self._orig_doc.rstrip()
+        if not new_doc:
+            new_doc = f"The original docstring for {self.name} was empty."
         if self.backends:
             lines.pop()  # Remove last empty line
             to_add = "\n    ".join(lines)
-            if not self._orig_doc:
-                new_doc = (
-                    f"The original docstring for {self.name} was empty.\n\n    {to_add}"
-                )
-            else:
-                new_doc = f"{self._orig_doc.rstrip()}\n\n    {to_add}"
-        else:
-            new_doc = self._orig_doc
+            new_doc = f"{new_doc}\n\n    {to_add}"
+
+        # Add "Attention" admonishment after the one line summary
         if "networkx" not in self.backends:
-            # Insert "Attention" admonishment after the one line "Summary"
             lines = new_doc.split("\n")
             index = 0
             while not lines[index].strip():
                 index += 1
-            while lines[index].strip():
+            while index < len(lines) and lines[index].strip():
                 index += 1
             backends = sorted(self.backends)
             if len(backends) == 0:
